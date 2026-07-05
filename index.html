@@ -1,0 +1,1618 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>공유 체크리스트 달력</title>
+<style>
+  :root{
+    --bg: #F3F4F7;
+    --surface: #FFFFFF;
+    --surface-alt: #F8F9FB;
+    --border: #E3E5EA;
+    --text: #1F2430;
+    --text-soft: #8A8F9C;
+    --primary: #4F5BD5;
+    --primary-soft: #ECEDFB;
+    --sat: #2F6FE0;
+    --sat-bg: #EEF4FE;
+    --sun: #E0472F;
+    --sun-bg: #FDEEEC;
+    --sub: #C97A1F;
+    --sub-bg: #FCF1E3;
+    --trad: #8B5FBF;
+    --trad-bg: #F3EDFA;
+    --done: #2E9E6C;
+    --done-bg: #E9F8F0;
+    --todo: #E0472F;
+    --danger: #E0472F;
+    --today-ring: #4F5BD5;
+    --shadow: 0 1px 2px rgba(20,22,30,0.04), 0 2px 8px rgba(20,22,30,0.06);
+    --shadow-lg: 0 8px 24px rgba(20,22,30,0.18), 0 2px 6px rgba(20,22,30,0.08);
+    --radius: 10px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  button, .cell, .modal-chk, .row-chk, .incomplete-row, .icon-btn, .today-btn, .incomplete-badge{
+    touch-action: manipulation;
+  }
+  body{
+    margin:0;
+    background:var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Pretendard', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color:var(--text);
+    padding: 28px 20px;
+    min-height:100vh;
+  }
+  .app{ max-width: 1040px; margin:0 auto; }
+
+  .toolbar{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 20px; margin-bottom:16px; box-shadow:var(--shadow);
+    flex-wrap:wrap; gap:12px;
+  }
+  .title-block{ display:flex; align-items:baseline; gap:10px; }
+  .month-title{ font-size:20px; font-weight:700; margin:0; letter-spacing:-0.2px; }
+  .year{ font-size:13px; color:var(--text-soft); font-weight:500; }
+  .incomplete-badge{
+    display:flex; align-items:center; gap:3px;
+    font-size:12.5px; font-weight:600; color:var(--todo);
+    background:var(--sun-bg); border:1px solid #F3C6BE;
+    border-radius:8px; padding:5px 11px; cursor:pointer;
+    font-family:inherit; transition: background .12s, transform .12s;
+  }
+  .incomplete-badge:hover{ background:#FBDFDA; transform:translateY(-1px); }
+  .incomplete-badge b{ font-size:13.5px; }
+
+  .nav{ display:flex; align-items:center; gap:6px; }
+  .icon-btn{
+    width:32px; height:32px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface); cursor:pointer; font-size:14px; color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+    transition: background .12s, border-color .12s;
+  }
+  .icon-btn:hover{ background:var(--surface-alt); border-color:#D3D6DE; }
+  .today-btn{
+    height:32px; padding:0 14px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface); cursor:pointer; font-size:13px; font-weight:600; color:var(--primary);
+  }
+  .today-btn:hover{ background:var(--primary-soft); }
+
+  .status{ font-size:12px; color:var(--text-soft); margin:0 0 10px 2px; min-height:16px; }
+
+  .weekdays{
+    display:grid; grid-template-columns: repeat(7,minmax(0,1fr));
+    margin-bottom:8px; padding:0 2px;
+  }
+  .weekdays div{
+    text-align:center; font-size:12px; color:var(--text-soft); font-weight:600;
+    padding:4px 0; min-width:0; text-transform:uppercase; letter-spacing:0.4px;
+  }
+  .weekdays .wd-sun{ color:var(--sun); }
+  .weekdays .wd-sat{ color:var(--sat); }
+
+  .grid{ display:grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap:8px; }
+
+  .cell{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    min-height:112px;
+    min-width:0;
+    display:flex; flex-direction:column;
+    padding:8px 9px;
+    box-shadow:var(--shadow);
+    position:relative;
+    overflow:hidden;
+    cursor:pointer;
+    transition: box-shadow .12s, transform .12s, border-color .12s;
+  }
+  .cell:hover{ box-shadow:0 4px 14px rgba(20,22,30,0.12); border-color:#D3D6DE; transform:translateY(-1px); }
+  .cell:active{ transform:scale(0.98); box-shadow:var(--shadow); }
+  .cell.empty{ background:transparent; border:1px dashed var(--border); box-shadow:none; cursor:default; }
+  .cell.empty:hover{ transform:none; box-shadow:none; }
+  .cell.today{ outline: 2px solid var(--today-ring); outline-offset:-2px; }
+  .cell.sat{ background:var(--sat-bg); }
+  .cell.sun{ background:var(--sun-bg); }
+  .cell.holiday{ background:var(--sun-bg); border-color:#F3C6BE; }
+  .cell.substitute{ background:var(--sub-bg); border-color:#EFD3A8; }
+  .cell.traditional{ background:var(--trad-bg); border-color:#DCC9EE; }
+
+  .daynum{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; }
+  .num{ font-size:14px; font-weight:700; }
+  .num.sat{ color:var(--sat); }
+  .num.sun{ color:var(--sun); }
+  .num.holiday{ color:var(--sun); }
+  .num.substitute{ color:var(--sub); }
+  .num.traditional{ color:var(--trad); }
+  .holiday-tag{
+    font-size:9px; background:var(--sun); color:#fff; font-weight:700;
+    padding:1px 6px; border-radius:6px; letter-spacing:0.2px;
+  }
+  .holiday-tag.substitute{ background:var(--sub); }
+  .holiday-tag.traditional{ background:var(--trad); }
+
+  .stats-row{ display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap; }
+  .pill{
+    font-size:9.5px; font-weight:600; padding:1px 6px; border-radius:6px;
+    background:var(--surface-alt); color:var(--text-soft); white-space:nowrap;
+  }
+  .pill.done{ background:var(--done-bg); color:var(--done); }
+  .pill.todo{ background:var(--sun-bg); color:var(--todo); }
+
+  .preview{ flex:1; display:flex; flex-direction:column; gap:2px; overflow:hidden; }
+  .preview-item{
+    font-size:11px; display:flex; align-items:center; gap:5px; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .preview-item .dot{
+    width:6px; height:6px; border-radius:50%; background:var(--text-soft); flex:0 0 auto;
+  }
+  .preview-item.done .dot{ background:var(--done); }
+  .preview-item.done span{ text-decoration:line-through; color:var(--text-soft); }
+  .more-count{ font-size:10.5px; color:var(--text-soft); margin-top:1px; }
+  .empty-hint{ font-size:11px; color:var(--text-soft); opacity:0; transition:opacity .12s; }
+  .cell:hover .empty-hint{ opacity:1; }
+
+  /* Modal */
+  .overlay{
+    position:fixed; inset:0; background:rgba(20,22,30,0.45);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px; z-index:1000; opacity:0; pointer-events:none;
+    transition:opacity .15s;
+  }
+  .overlay.open{ opacity:1; pointer-events:auto; }
+  .modal{
+    background:var(--surface); border-radius:16px; width:100%; max-width:520px;
+    max-height:85vh; display:flex; flex-direction:column;
+    box-shadow:var(--shadow-lg); transform:translateY(8px) scale(0.98); transition:transform .15s;
+  }
+  .overlay.open .modal{ transform:translateY(0) scale(1); }
+  .modal-header{
+    display:flex; align-items:flex-start; justify-content:space-between;
+    padding:20px 22px 14px; border-bottom:1px solid var(--border);
+  }
+  .modal-header h2{ margin:0; font-size:19px; font-weight:700; }
+  .modal-header .sub{ font-size:12.5px; color:var(--text-soft); margin-top:3px; }
+  .modal-close{
+    width:30px; height:30px; border-radius:8px; border:none; background:var(--surface-alt);
+    color:var(--text-soft); font-size:16px; cursor:pointer; flex:0 0 auto;
+  }
+  .modal-close:hover{ background:var(--border); }
+
+  .modal-stats{ display:flex; gap:8px; padding:14px 22px 4px; }
+  .modal-stats .pill{ font-size:12px; padding:4px 10px; border-radius:8px; }
+
+  .modal-holiday{
+    margin:10px 22px 0; display:flex; gap:8px; flex-wrap:wrap;
+  }
+  .holiday-toggle-btn{
+    font-size:12.5px; font-weight:600; padding:6px 12px; border-radius:8px;
+    border:1px solid var(--border); background:var(--surface); color:var(--text-soft); cursor:pointer;
+  }
+  .holiday-toggle-btn.active{ background:var(--sun); border-color:var(--sun); color:#fff; }
+  .holiday-toggle-btn.sub-active{ background:var(--sub); border-color:var(--sub); color:#fff; }
+  .holiday-toggle-btn.trad-active{ background:var(--trad); border-color:var(--trad); color:#fff; }
+
+  .modal-body{
+    flex:1; overflow-y:auto; padding:12px 22px 4px;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  }
+  .modal-item{
+    display:flex; align-items:center; gap:10px; padding:9px 4px;
+    border-bottom:1px solid var(--surface-alt);
+  }
+  .modal-item:last-child{ border-bottom:none; }
+  .modal-chk{
+    width:19px; height:19px; flex:0 0 19px; border:1.5px solid var(--border);
+    border-radius:6px; cursor:pointer; position:relative; background:var(--surface);
+  }
+  .modal-item.done .modal-chk{ background:var(--done); border-color:var(--done); }
+  .modal-item.done .modal-chk::after{
+    content:''; position:absolute; left:5px; top:2px; width:5px; height:9px;
+    border:solid white; border-width:0 2px 2px 0; transform:rotate(40deg);
+  }
+  .modal-item-text{
+    flex:1; font-size:14px; padding:4px 6px; border-radius:6px; cursor:text;
+    outline:none; word-break:break-word;
+  }
+  .modal-item-text:focus{ background:var(--surface-alt); }
+  .modal-item.done .modal-item-text{ text-decoration:line-through; color:var(--text-soft); }
+  .modal-del{
+    border:none; background:none; color:var(--text-soft); cursor:pointer;
+    font-size:15px; padding:4px 6px; flex:0 0 auto; border-radius:6px;
+  }
+  .modal-del:hover{ background:var(--sun-bg); color:var(--danger); }
+
+  .modal-empty{ text-align:center; color:var(--text-soft); font-size:13px; padding:24px 0; }
+
+  .incomplete-row{
+    display:flex; align-items:center; gap:10px; padding:10px 4px;
+    border-bottom:1px solid var(--surface-alt); cursor:pointer;
+  }
+  .incomplete-row:last-child{ border-bottom:none; }
+  .incomplete-row:hover{ background:var(--surface-alt); border-radius:8px; }
+  .incomplete-row:active{ background:var(--primary-soft); border-radius:8px; }
+  .incomplete-row{ transition: opacity .18s, transform .18s, background .12s, border-radius .12s; }
+  .incomplete-row.removing{ opacity:0; transform:translateX(6px); }
+  .modal-item{ transition: opacity .18s, transform .18s; }
+  .modal-item.removing{ opacity:0; transform:translateX(6px); }
+  .incomplete-row .day-badge{
+    flex:0 0 auto; font-size:11.5px; font-weight:700; color:var(--primary);
+    background:var(--primary-soft); border-radius:7px; padding:4px 8px; white-space:nowrap;
+  }
+  .incomplete-row .row-text{ flex:1; font-size:14px; word-break:break-word; }
+  .incomplete-row .row-chk{
+    width:19px; height:19px; flex:0 0 19px; border:1.5px solid var(--border);
+    border-radius:6px; position:relative; background:var(--surface);
+  }
+  .incomplete-row .row-chk:hover{ border-color:var(--done); }
+
+  .modal-add{
+    display:flex; gap:8px; padding:14px 22px 20px; border-top:1px solid var(--border);
+  }
+  .modal-add input{
+    flex:1; font-family:inherit; font-size:14px; border:1px solid var(--border);
+    border-radius:9px; padding:10px 12px; min-width:0; outline:none;
+  }
+  .modal-add input:focus{ border-color:var(--primary); }
+  .modal-add button{
+    border:none; background:var(--primary); color:#fff; font-weight:600;
+    border-radius:9px; padding:0 18px; font-size:14px; cursor:pointer;
+  }
+  .modal-add button:hover{ opacity:0.92; }
+
+  .footer-note{
+    margin-top:18px; font-size:12px; color:var(--text-soft); text-align:center; line-height:1.7;
+  }
+
+  @media (max-width: 700px){
+    .grid{ gap:5px; }
+    .cell{ min-height:84px; padding:6px 6px; }
+    .month-title{ font-size:17px; }
+    .preview-item{ font-size:10px; }
+    body{ padding:16px 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="toolbar">
+    <div class="title-block">
+      <h1 class="month-title" id="monthName">-</h1>
+      <span class="year" id="yearLabel">-</span>
+      <button class="incomplete-badge" id="incompleteBadge">
+        미완료 <b id="incompleteCount">0</b>개
+      </button>
+    </div>
+    <div class="nav">
+      <button class="icon-btn" id="prevBtn" title="이전 달">◀</button>
+      <button class="today-btn" id="todayBtn">오늘</button>
+      <button class="icon-btn" id="nextBtn" title="다음 달">▶</button>
+    </div>
+  </div>
+  <div class="status" id="statusLine"></div>
+  <div class="weekdays">
+    <div class="wd-sun">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="wd-sat">토</div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="footer-note">
+    이 달력은 <b>공유 데이터</b>로 저장됩니다. 이 링크를 여는 누구나 항목을 추가·체크·삭제할 수 있어요.<br>
+    날짜를 클릭하면 자세히 보고 편집할 수 있어요. 팝업에서 <b>공휴일</b> · <b>대체공휴일</b> · <b>명절</b>도 지정할 수 있어요.<br>
+    2026년 대한민국 공휴일·대체공휴일·명절은 자동으로 표시되며, 필요하면 직접 수정·해제할 수 있어요.
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div>
+        <h2 id="modalTitle">-</h2>
+        <div class="sub" id="modalSub"></div>
+      </div>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-stats" id="modalStats"></div>
+    <div class="modal-holiday">
+      <button class="holiday-toggle-btn" id="holidayToggleBtn">공휴일로 표시</button>
+      <button class="holiday-toggle-btn" id="substituteToggleBtn">대체공휴일로 표시</button>
+      <button class="holiday-toggle-btn" id="traditionalToggleBtn">명절로 표시</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-add">
+      <input id="modalInput" placeholder="할 일 추가 후 Enter">
+      <button id="modalAddBtn">추가</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="incompleteOverlay">
+  <div class="modal" id="incompleteModal">
+    <div class="modal-header">
+      <div>
+        <h2>이번 달 미완료 할 일</h2>
+        <div class="sub" id="incompleteSub"></div>
+      </div>
+      <button class="modal-close" id="incompleteClose">✕</button>
+    </div>
+    <div class="modal-body" id="incompleteBody"></div>
+  </div>
+</div>
+
+<script>
+// 대한민국 공휴일·대체공휴일·명절 자동 데이터 (2026~2066년, 사용자가 직접 지정/해제하면 그 값이 우선됨)
+// 고정 양력 공휴일 + 음력 계산(설날/추석/부처님오신날) + 대체공휴일 규칙을 적용해 생성한 예측 데이터입니다.
+// 2026년 지방선거(6/3)처럼 법 개정이나 임시공휴일 지정 등은 미래 연도에 반영되지 않을 수 있습니다.
+const KR_HOLIDAYS = {
+  "2026-01-01":"holiday",
+  "2026-02-16":"traditional",
+  "2026-02-17":"traditional",
+  "2026-02-18":"traditional",
+  "2026-03-01":"holiday",
+  "2026-03-02":"substitute",
+  "2026-05-05":"holiday",
+  "2026-05-24":"holiday",
+  "2026-05-25":"substitute",
+  "2026-06-03":"holiday",
+  "2026-06-06":"holiday",
+  "2026-07-17":"holiday",
+  "2026-08-15":"holiday",
+  "2026-08-17":"substitute",
+  "2026-09-24":"traditional",
+  "2026-09-25":"traditional",
+  "2026-09-26":"traditional",
+  "2026-10-03":"holiday",
+  "2026-10-05":"substitute",
+  "2026-10-09":"holiday",
+  "2026-12-25":"holiday",
+  "2027-01-01":"holiday",
+  "2027-02-06":"traditional",
+  "2027-02-07":"traditional",
+  "2027-02-08":"traditional",
+  "2027-02-09":"substitute",
+  "2027-03-01":"holiday",
+  "2027-05-05":"holiday",
+  "2027-05-13":"holiday",
+  "2027-06-06":"holiday",
+  "2027-07-17":"holiday",
+  "2027-08-15":"holiday",
+  "2027-08-16":"substitute",
+  "2027-09-14":"traditional",
+  "2027-09-15":"traditional",
+  "2027-09-16":"traditional",
+  "2027-10-03":"holiday",
+  "2027-10-04":"substitute",
+  "2027-10-09":"holiday",
+  "2027-10-11":"substitute",
+  "2027-12-25":"holiday",
+  "2028-01-01":"holiday",
+  "2028-01-26":"traditional",
+  "2028-01-27":"traditional",
+  "2028-01-28":"traditional",
+  "2028-03-01":"holiday",
+  "2028-05-02":"holiday",
+  "2028-05-05":"holiday",
+  "2028-06-06":"holiday",
+  "2028-07-17":"holiday",
+  "2028-08-15":"holiday",
+  "2028-10-02":"traditional",
+  "2028-10-03":"traditional",
+  "2028-10-04":"traditional",
+  "2028-10-09":"holiday",
+  "2028-12-25":"holiday",
+  "2029-01-01":"holiday",
+  "2029-02-12":"traditional",
+  "2029-02-13":"traditional",
+  "2029-02-14":"traditional",
+  "2029-03-01":"holiday",
+  "2029-05-05":"holiday",
+  "2029-05-07":"substitute",
+  "2029-05-20":"holiday",
+  "2029-05-21":"substitute",
+  "2029-06-06":"holiday",
+  "2029-07-17":"holiday",
+  "2029-08-15":"holiday",
+  "2029-09-21":"traditional",
+  "2029-09-22":"traditional",
+  "2029-09-23":"traditional",
+  "2029-09-24":"substitute",
+  "2029-10-03":"holiday",
+  "2029-10-09":"holiday",
+  "2029-12-25":"holiday",
+  "2030-01-01":"holiday",
+  "2030-02-02":"traditional",
+  "2030-02-03":"traditional",
+  "2030-02-04":"traditional",
+  "2030-02-05":"substitute",
+  "2030-03-01":"holiday",
+  "2030-05-05":"holiday",
+  "2030-05-06":"substitute",
+  "2030-05-09":"holiday",
+  "2030-06-06":"holiday",
+  "2030-07-17":"holiday",
+  "2030-08-15":"holiday",
+  "2030-09-11":"traditional",
+  "2030-09-12":"traditional",
+  "2030-09-13":"traditional",
+  "2030-10-03":"holiday",
+  "2030-10-09":"holiday",
+  "2030-12-25":"holiday",
+  "2031-01-01":"holiday",
+  "2031-01-22":"traditional",
+  "2031-01-23":"traditional",
+  "2031-01-24":"traditional",
+  "2031-03-01":"holiday",
+  "2031-03-03":"substitute",
+  "2031-05-05":"holiday",
+  "2031-05-28":"holiday",
+  "2031-06-06":"holiday",
+  "2031-07-17":"holiday",
+  "2031-08-15":"holiday",
+  "2031-09-30":"traditional",
+  "2031-10-01":"traditional",
+  "2031-10-02":"traditional",
+  "2031-10-03":"holiday",
+  "2031-10-09":"holiday",
+  "2031-12-25":"holiday",
+  "2032-01-01":"holiday",
+  "2032-02-10":"traditional",
+  "2032-02-11":"traditional",
+  "2032-02-12":"traditional",
+  "2032-03-01":"holiday",
+  "2032-05-05":"holiday",
+  "2032-05-16":"holiday",
+  "2032-05-17":"substitute",
+  "2032-06-06":"holiday",
+  "2032-07-17":"holiday",
+  "2032-08-15":"holiday",
+  "2032-08-16":"substitute",
+  "2032-09-18":"traditional",
+  "2032-09-19":"traditional",
+  "2032-09-20":"traditional",
+  "2032-09-21":"substitute",
+  "2032-10-03":"holiday",
+  "2032-10-04":"substitute",
+  "2032-10-09":"holiday",
+  "2032-10-11":"substitute",
+  "2032-12-25":"holiday",
+  "2033-01-01":"holiday",
+  "2033-01-30":"traditional",
+  "2033-01-31":"traditional",
+  "2033-02-01":"traditional",
+  "2033-02-02":"substitute",
+  "2033-03-01":"holiday",
+  "2033-05-05":"holiday",
+  "2033-05-06":"holiday",
+  "2033-06-06":"holiday",
+  "2033-07-17":"holiday",
+  "2033-08-15":"holiday",
+  "2033-09-07":"traditional",
+  "2033-09-08":"traditional",
+  "2033-09-09":"traditional",
+  "2033-10-03":"holiday",
+  "2033-10-09":"holiday",
+  "2033-10-10":"substitute",
+  "2033-12-25":"holiday",
+  "2034-01-01":"holiday",
+  "2034-02-18":"traditional",
+  "2034-02-19":"traditional",
+  "2034-02-20":"traditional",
+  "2034-02-21":"substitute",
+  "2034-03-01":"holiday",
+  "2034-05-05":"holiday",
+  "2034-05-25":"holiday",
+  "2034-06-06":"holiday",
+  "2034-07-17":"holiday",
+  "2034-08-15":"holiday",
+  "2034-09-26":"traditional",
+  "2034-09-27":"traditional",
+  "2034-09-28":"traditional",
+  "2034-10-03":"holiday",
+  "2034-10-09":"holiday",
+  "2034-12-25":"holiday",
+  "2035-01-01":"holiday",
+  "2035-02-07":"traditional",
+  "2035-02-08":"traditional",
+  "2035-02-09":"traditional",
+  "2035-03-01":"holiday",
+  "2035-05-05":"holiday",
+  "2035-05-07":"substitute",
+  "2035-05-15":"holiday",
+  "2035-06-06":"holiday",
+  "2035-07-17":"holiday",
+  "2035-08-15":"holiday",
+  "2035-09-15":"traditional",
+  "2035-09-16":"traditional",
+  "2035-09-17":"traditional",
+  "2035-09-18":"substitute",
+  "2035-10-03":"holiday",
+  "2035-10-09":"holiday",
+  "2035-12-25":"holiday",
+  "2036-01-01":"holiday",
+  "2036-01-27":"traditional",
+  "2036-01-28":"traditional",
+  "2036-01-29":"traditional",
+  "2036-01-30":"substitute",
+  "2036-03-01":"holiday",
+  "2036-03-03":"substitute",
+  "2036-05-03":"holiday",
+  "2036-05-05":"holiday",
+  "2036-05-06":"substitute",
+  "2036-06-06":"holiday",
+  "2036-07-17":"holiday",
+  "2036-08-15":"holiday",
+  "2036-10-03":"traditional",
+  "2036-10-04":"traditional",
+  "2036-10-05":"traditional",
+  "2036-10-06":"substitute",
+  "2036-10-09":"holiday",
+  "2036-12-25":"holiday",
+  "2037-01-01":"holiday",
+  "2037-02-14":"traditional",
+  "2037-02-15":"traditional",
+  "2037-02-16":"traditional",
+  "2037-02-17":"substitute",
+  "2037-03-01":"holiday",
+  "2037-03-02":"substitute",
+  "2037-05-05":"holiday",
+  "2037-05-22":"holiday",
+  "2037-06-06":"holiday",
+  "2037-07-17":"holiday",
+  "2037-08-15":"holiday",
+  "2037-08-17":"substitute",
+  "2037-09-23":"traditional",
+  "2037-09-24":"traditional",
+  "2037-09-25":"traditional",
+  "2037-10-03":"holiday",
+  "2037-10-05":"substitute",
+  "2037-10-09":"holiday",
+  "2037-12-25":"holiday",
+  "2038-01-01":"holiday",
+  "2038-02-03":"traditional",
+  "2038-02-04":"traditional",
+  "2038-02-05":"traditional",
+  "2038-03-01":"holiday",
+  "2038-05-05":"holiday",
+  "2038-05-11":"holiday",
+  "2038-06-06":"holiday",
+  "2038-07-17":"holiday",
+  "2038-08-15":"holiday",
+  "2038-08-16":"substitute",
+  "2038-09-12":"traditional",
+  "2038-09-13":"traditional",
+  "2038-09-14":"traditional",
+  "2038-09-15":"substitute",
+  "2038-10-03":"holiday",
+  "2038-10-04":"substitute",
+  "2038-10-09":"holiday",
+  "2038-10-11":"substitute",
+  "2038-12-25":"holiday",
+  "2039-01-01":"holiday",
+  "2039-01-23":"traditional",
+  "2039-01-24":"traditional",
+  "2039-01-25":"traditional",
+  "2039-01-26":"substitute",
+  "2039-03-01":"holiday",
+  "2039-04-30":"holiday",
+  "2039-05-02":"substitute",
+  "2039-05-05":"holiday",
+  "2039-06-06":"holiday",
+  "2039-07-17":"holiday",
+  "2039-08-15":"holiday",
+  "2039-10-01":"traditional",
+  "2039-10-02":"traditional",
+  "2039-10-03":"traditional",
+  "2039-10-04":"substitute",
+  "2039-10-09":"holiday",
+  "2039-10-10":"substitute",
+  "2039-12-25":"holiday",
+  "2040-01-01":"holiday",
+  "2040-02-11":"traditional",
+  "2040-02-12":"traditional",
+  "2040-02-13":"traditional",
+  "2040-02-14":"substitute",
+  "2040-03-01":"holiday",
+  "2040-05-05":"holiday",
+  "2040-05-07":"substitute",
+  "2040-05-18":"holiday",
+  "2040-06-06":"holiday",
+  "2040-07-17":"holiday",
+  "2040-08-15":"holiday",
+  "2040-09-20":"traditional",
+  "2040-09-21":"traditional",
+  "2040-09-22":"traditional",
+  "2040-10-03":"holiday",
+  "2040-10-09":"holiday",
+  "2040-12-25":"holiday",
+  "2041-01-01":"holiday",
+  "2041-01-31":"traditional",
+  "2041-02-01":"traditional",
+  "2041-02-02":"traditional",
+  "2041-03-01":"holiday",
+  "2041-05-05":"holiday",
+  "2041-05-06":"substitute",
+  "2041-05-07":"holiday",
+  "2041-06-06":"holiday",
+  "2041-07-17":"holiday",
+  "2041-08-15":"holiday",
+  "2041-09-09":"traditional",
+  "2041-09-10":"traditional",
+  "2041-09-11":"traditional",
+  "2041-10-03":"holiday",
+  "2041-10-09":"holiday",
+  "2041-12-25":"holiday",
+  "2042-01-01":"holiday",
+  "2042-01-21":"traditional",
+  "2042-01-22":"traditional",
+  "2042-01-23":"traditional",
+  "2042-03-01":"holiday",
+  "2042-03-03":"substitute",
+  "2042-05-05":"holiday",
+  "2042-05-26":"holiday",
+  "2042-06-06":"holiday",
+  "2042-07-17":"holiday",
+  "2042-08-15":"holiday",
+  "2042-09-27":"traditional",
+  "2042-09-28":"traditional",
+  "2042-09-29":"traditional",
+  "2042-09-30":"substitute",
+  "2042-10-03":"holiday",
+  "2042-10-09":"holiday",
+  "2042-12-25":"holiday",
+  "2043-01-01":"holiday",
+  "2043-02-09":"traditional",
+  "2043-02-10":"traditional",
+  "2043-02-11":"traditional",
+  "2043-03-01":"holiday",
+  "2043-03-02":"substitute",
+  "2043-05-05":"holiday",
+  "2043-05-16":"holiday",
+  "2043-05-18":"substitute",
+  "2043-06-06":"holiday",
+  "2043-07-17":"holiday",
+  "2043-08-15":"holiday",
+  "2043-08-17":"substitute",
+  "2043-09-16":"traditional",
+  "2043-09-17":"traditional",
+  "2043-09-18":"traditional",
+  "2043-10-03":"holiday",
+  "2043-10-05":"substitute",
+  "2043-10-09":"holiday",
+  "2043-12-25":"holiday",
+  "2044-01-01":"holiday",
+  "2044-01-29":"traditional",
+  "2044-01-30":"traditional",
+  "2044-01-31":"traditional",
+  "2044-02-01":"substitute",
+  "2044-03-01":"holiday",
+  "2044-05-05":"holiday",
+  "2044-06-06":"holiday",
+  "2044-07-17":"holiday",
+  "2044-08-15":"holiday",
+  "2044-10-03":"holiday",
+  "2044-10-04":"traditional",
+  "2044-10-05":"traditional",
+  "2044-10-06":"traditional",
+  "2044-10-09":"holiday",
+  "2044-10-10":"substitute",
+  "2044-12-25":"holiday",
+  "2045-01-01":"holiday",
+  "2045-02-16":"traditional",
+  "2045-02-17":"traditional",
+  "2045-02-18":"traditional",
+  "2045-03-01":"holiday",
+  "2045-05-05":"holiday",
+  "2045-05-24":"holiday",
+  "2045-06-06":"holiday",
+  "2045-07-17":"holiday",
+  "2045-08-15":"holiday",
+  "2045-09-24":"traditional",
+  "2045-09-25":"traditional",
+  "2045-09-26":"traditional",
+  "2045-09-27":"substitute",
+  "2045-10-03":"holiday",
+  "2045-10-09":"holiday",
+  "2045-12-25":"holiday",
+  "2046-01-01":"holiday",
+  "2046-02-05":"traditional",
+  "2046-02-06":"traditional",
+  "2046-02-07":"traditional",
+  "2046-03-01":"holiday",
+  "2046-05-05":"holiday",
+  "2046-05-07":"substitute",
+  "2046-05-13":"holiday",
+  "2046-05-14":"substitute",
+  "2046-06-06":"holiday",
+  "2046-07-17":"holiday",
+  "2046-08-15":"holiday",
+  "2046-09-14":"traditional",
+  "2046-09-15":"traditional",
+  "2046-09-16":"traditional",
+  "2046-09-17":"substitute",
+  "2046-10-03":"holiday",
+  "2046-10-09":"holiday",
+  "2046-12-25":"holiday",
+  "2047-01-01":"holiday",
+  "2047-01-25":"traditional",
+  "2047-01-26":"traditional",
+  "2047-01-27":"traditional",
+  "2047-01-28":"substitute",
+  "2047-03-01":"holiday",
+  "2047-05-02":"holiday",
+  "2047-05-05":"holiday",
+  "2047-05-06":"substitute",
+  "2047-06-06":"holiday",
+  "2047-07-17":"holiday",
+  "2047-08-15":"holiday",
+  "2047-10-03":"traditional",
+  "2047-10-04":"traditional",
+  "2047-10-05":"traditional",
+  "2047-10-09":"holiday",
+  "2047-12-25":"holiday",
+  "2048-01-01":"holiday",
+  "2048-02-13":"traditional",
+  "2048-02-14":"traditional",
+  "2048-02-15":"traditional",
+  "2048-03-01":"holiday",
+  "2048-03-02":"substitute",
+  "2048-05-05":"holiday",
+  "2048-05-20":"holiday",
+  "2048-06-06":"holiday",
+  "2048-07-17":"holiday",
+  "2048-08-15":"holiday",
+  "2048-08-17":"substitute",
+  "2048-09-21":"traditional",
+  "2048-09-22":"traditional",
+  "2048-09-23":"traditional",
+  "2048-10-03":"holiday",
+  "2048-10-05":"substitute",
+  "2048-10-09":"holiday",
+  "2048-12-25":"holiday",
+  "2049-01-01":"holiday",
+  "2049-02-01":"traditional",
+  "2049-02-02":"traditional",
+  "2049-02-03":"traditional",
+  "2049-03-01":"holiday",
+  "2049-05-05":"holiday",
+  "2049-05-09":"holiday",
+  "2049-05-10":"substitute",
+  "2049-06-06":"holiday",
+  "2049-07-17":"holiday",
+  "2049-08-15":"holiday",
+  "2049-08-16":"substitute",
+  "2049-09-10":"traditional",
+  "2049-09-11":"traditional",
+  "2049-09-12":"traditional",
+  "2049-09-13":"substitute",
+  "2049-10-03":"holiday",
+  "2049-10-04":"substitute",
+  "2049-10-09":"holiday",
+  "2049-10-11":"substitute",
+  "2049-12-25":"holiday",
+  "2050-01-01":"holiday",
+  "2050-01-22":"traditional",
+  "2050-01-23":"traditional",
+  "2050-01-24":"traditional",
+  "2050-01-25":"substitute",
+  "2050-03-01":"holiday",
+  "2050-05-05":"holiday",
+  "2050-05-28":"holiday",
+  "2050-05-30":"substitute",
+  "2050-06-06":"holiday",
+  "2050-07-17":"holiday",
+  "2050-08-15":"holiday",
+  "2050-09-29":"traditional",
+  "2050-09-30":"traditional",
+  "2050-10-01":"traditional",
+  "2050-10-03":"holiday",
+  "2050-10-09":"holiday",
+  "2050-10-10":"substitute",
+  "2050-12-25":"holiday",
+  "2051-01-01":"holiday",
+  "2051-02-10":"traditional",
+  "2051-02-11":"traditional",
+  "2051-02-12":"traditional",
+  "2051-02-13":"substitute",
+  "2051-03-01":"holiday",
+  "2051-05-05":"holiday",
+  "2051-05-17":"holiday",
+  "2051-06-06":"holiday",
+  "2051-07-17":"holiday",
+  "2051-08-15":"holiday",
+  "2051-09-18":"traditional",
+  "2051-09-19":"traditional",
+  "2051-09-20":"traditional",
+  "2051-10-03":"holiday",
+  "2051-10-09":"holiday",
+  "2051-12-25":"holiday",
+  "2052-01-01":"holiday",
+  "2052-01-31":"traditional",
+  "2052-02-01":"traditional",
+  "2052-02-02":"traditional",
+  "2052-03-01":"holiday",
+  "2052-05-05":"holiday",
+  "2052-05-06":"holiday",
+  "2052-05-07":"substitute",
+  "2052-06-06":"holiday",
+  "2052-07-17":"holiday",
+  "2052-08-15":"holiday",
+  "2052-09-06":"traditional",
+  "2052-09-07":"traditional",
+  "2052-09-08":"traditional",
+  "2052-09-09":"substitute",
+  "2052-10-03":"holiday",
+  "2052-10-09":"holiday",
+  "2052-12-25":"holiday",
+  "2053-01-01":"holiday",
+  "2053-02-18":"traditional",
+  "2053-02-19":"traditional",
+  "2053-02-20":"traditional",
+  "2053-03-01":"holiday",
+  "2053-03-03":"substitute",
+  "2053-05-05":"holiday",
+  "2053-05-25":"holiday",
+  "2053-05-26":"substitute",
+  "2053-06-06":"holiday",
+  "2053-07-17":"holiday",
+  "2053-08-15":"holiday",
+  "2053-09-25":"traditional",
+  "2053-09-26":"traditional",
+  "2053-09-27":"traditional",
+  "2053-10-03":"holiday",
+  "2053-10-09":"holiday",
+  "2053-12-25":"holiday",
+  "2054-01-01":"holiday",
+  "2054-02-07":"traditional",
+  "2054-02-08":"traditional",
+  "2054-02-09":"traditional",
+  "2054-02-10":"substitute",
+  "2054-03-01":"holiday",
+  "2054-03-02":"substitute",
+  "2054-05-05":"holiday",
+  "2054-05-15":"holiday",
+  "2054-06-06":"holiday",
+  "2054-07-17":"holiday",
+  "2054-08-15":"holiday",
+  "2054-08-17":"substitute",
+  "2054-09-15":"traditional",
+  "2054-09-16":"traditional",
+  "2054-09-17":"traditional",
+  "2054-10-03":"holiday",
+  "2054-10-05":"substitute",
+  "2054-10-09":"holiday",
+  "2054-12-25":"holiday",
+  "2055-01-01":"holiday",
+  "2055-01-27":"traditional",
+  "2055-01-28":"traditional",
+  "2055-01-29":"traditional",
+  "2055-03-01":"holiday",
+  "2055-05-04":"holiday",
+  "2055-05-05":"holiday",
+  "2055-06-06":"holiday",
+  "2055-07-17":"holiday",
+  "2055-08-15":"holiday",
+  "2055-08-16":"substitute",
+  "2055-10-03":"holiday",
+  "2055-10-04":"traditional",
+  "2055-10-05":"traditional",
+  "2055-10-06":"traditional",
+  "2055-10-07":"substitute",
+  "2055-10-09":"holiday",
+  "2055-10-11":"substitute",
+  "2055-12-25":"holiday",
+  "2056-01-01":"holiday",
+  "2056-02-14":"traditional",
+  "2056-02-15":"traditional",
+  "2056-02-16":"traditional",
+  "2056-03-01":"holiday",
+  "2056-05-05":"holiday",
+  "2056-05-22":"holiday",
+  "2056-06-06":"holiday",
+  "2056-07-17":"holiday",
+  "2056-08-15":"holiday",
+  "2056-09-23":"traditional",
+  "2056-09-24":"traditional",
+  "2056-09-25":"traditional",
+  "2056-09-26":"substitute",
+  "2056-10-03":"holiday",
+  "2056-10-09":"holiday",
+  "2056-12-25":"holiday",
+  "2057-01-01":"holiday",
+  "2057-02-03":"traditional",
+  "2057-02-04":"traditional",
+  "2057-02-05":"traditional",
+  "2057-02-06":"substitute",
+  "2057-03-01":"holiday",
+  "2057-05-05":"holiday",
+  "2057-05-07":"substitute",
+  "2057-05-11":"holiday",
+  "2057-06-06":"holiday",
+  "2057-07-17":"holiday",
+  "2057-08-15":"holiday",
+  "2057-09-12":"traditional",
+  "2057-09-13":"traditional",
+  "2057-09-14":"traditional",
+  "2057-10-03":"holiday",
+  "2057-10-09":"holiday",
+  "2057-12-25":"holiday",
+  "2058-01-01":"holiday",
+  "2058-01-23":"traditional",
+  "2058-01-24":"traditional",
+  "2058-01-25":"traditional",
+  "2058-03-01":"holiday",
+  "2058-04-30":"holiday",
+  "2058-05-05":"holiday",
+  "2058-05-06":"substitute",
+  "2058-06-06":"holiday",
+  "2058-07-17":"holiday",
+  "2058-08-15":"holiday",
+  "2058-10-01":"traditional",
+  "2058-10-02":"traditional",
+  "2058-10-03":"traditional",
+  "2058-10-09":"holiday",
+  "2058-12-25":"holiday",
+  "2059-01-01":"holiday",
+  "2059-02-11":"traditional",
+  "2059-02-12":"traditional",
+  "2059-02-13":"traditional",
+  "2059-03-01":"holiday",
+  "2059-03-03":"substitute",
+  "2059-05-05":"holiday",
+  "2059-05-19":"holiday",
+  "2059-06-06":"holiday",
+  "2059-07-17":"holiday",
+  "2059-08-15":"holiday",
+  "2059-09-20":"traditional",
+  "2059-09-21":"traditional",
+  "2059-09-22":"traditional",
+  "2059-09-23":"substitute",
+  "2059-10-03":"holiday",
+  "2059-10-09":"holiday",
+  "2059-12-25":"holiday",
+  "2060-01-01":"holiday",
+  "2060-02-01":"traditional",
+  "2060-02-02":"traditional",
+  "2060-02-03":"traditional",
+  "2060-02-04":"substitute",
+  "2060-03-01":"holiday",
+  "2060-05-05":"holiday",
+  "2060-05-07":"holiday",
+  "2060-06-06":"holiday",
+  "2060-07-17":"holiday",
+  "2060-08-15":"holiday",
+  "2060-08-16":"substitute",
+  "2060-09-08":"traditional",
+  "2060-09-09":"traditional",
+  "2060-09-10":"traditional",
+  "2060-10-03":"holiday",
+  "2060-10-04":"substitute",
+  "2060-10-09":"holiday",
+  "2060-10-11":"substitute",
+  "2060-12-25":"holiday",
+  "2061-01-01":"holiday",
+  "2061-01-20":"traditional",
+  "2061-01-21":"traditional",
+  "2061-01-22":"traditional",
+  "2061-03-01":"holiday",
+  "2061-05-05":"holiday",
+  "2061-05-26":"holiday",
+  "2061-06-06":"holiday",
+  "2061-07-17":"holiday",
+  "2061-08-15":"holiday",
+  "2061-09-27":"traditional",
+  "2061-09-28":"traditional",
+  "2061-09-29":"traditional",
+  "2061-10-03":"holiday",
+  "2061-10-09":"holiday",
+  "2061-10-10":"substitute",
+  "2061-12-25":"holiday",
+  "2062-01-01":"holiday",
+  "2062-02-08":"traditional",
+  "2062-02-09":"traditional",
+  "2062-02-10":"traditional",
+  "2062-03-01":"holiday",
+  "2062-05-05":"holiday",
+  "2062-05-16":"holiday",
+  "2062-06-06":"holiday",
+  "2062-07-17":"holiday",
+  "2062-08-15":"holiday",
+  "2062-09-16":"traditional",
+  "2062-09-17":"traditional",
+  "2062-09-18":"traditional",
+  "2062-09-19":"substitute",
+  "2062-10-03":"holiday",
+  "2062-10-09":"holiday",
+  "2062-12-25":"holiday",
+  "2063-01-01":"holiday",
+  "2063-01-28":"traditional",
+  "2063-01-29":"traditional",
+  "2063-01-30":"traditional",
+  "2063-01-31":"substitute",
+  "2063-03-01":"holiday",
+  "2063-05-05":"holiday",
+  "2063-05-07":"substitute",
+  "2063-05-08":"substitute",
+  "2063-06-06":"holiday",
+  "2063-07-17":"holiday",
+  "2063-08-15":"holiday",
+  "2063-10-03":"holiday",
+  "2063-10-05":"traditional",
+  "2063-10-06":"traditional",
+  "2063-10-07":"traditional",
+  "2063-10-08":"substitute",
+  "2063-10-09":"holiday",
+  "2063-12-25":"holiday",
+  "2064-01-01":"holiday",
+  "2064-02-16":"traditional",
+  "2064-02-17":"traditional",
+  "2064-02-18":"traditional",
+  "2064-02-19":"substitute",
+  "2064-03-01":"holiday",
+  "2064-03-03":"substitute",
+  "2064-05-05":"holiday",
+  "2064-05-23":"holiday",
+  "2064-06-06":"holiday",
+  "2064-07-17":"holiday",
+  "2064-08-15":"holiday",
+  "2064-09-24":"traditional",
+  "2064-09-25":"traditional",
+  "2064-09-26":"traditional",
+  "2064-10-03":"holiday",
+  "2064-10-09":"holiday",
+  "2064-12-25":"holiday",
+  "2065-01-01":"holiday",
+  "2065-02-04":"traditional",
+  "2065-02-05":"traditional",
+  "2065-02-06":"traditional",
+  "2065-03-01":"holiday",
+  "2065-03-02":"substitute",
+  "2065-05-05":"holiday",
+  "2065-05-12":"holiday",
+  "2065-06-06":"holiday",
+  "2065-07-17":"holiday",
+  "2065-08-15":"holiday",
+  "2065-08-17":"substitute",
+  "2065-09-14":"traditional",
+  "2065-09-15":"traditional",
+  "2065-09-16":"traditional",
+  "2065-10-03":"holiday",
+  "2065-10-05":"substitute",
+  "2065-10-09":"holiday",
+  "2065-12-25":"holiday",
+  "2066-01-01":"holiday",
+  "2066-01-25":"traditional",
+  "2066-01-26":"traditional",
+  "2066-01-27":"traditional",
+  "2066-03-01":"holiday",
+  "2066-05-01":"holiday",
+  "2066-05-03":"substitute",
+  "2066-05-05":"holiday",
+  "2066-06-06":"holiday",
+  "2066-07-17":"holiday",
+  "2066-08-15":"holiday",
+  "2066-08-16":"substitute",
+  "2066-10-02":"traditional",
+  "2066-10-03":"traditional",
+  "2066-10-04":"traditional",
+  "2066-10-05":"substitute",
+  "2066-10-06":"substitute",
+  "2066-10-09":"holiday",
+  "2066-10-11":"substitute",
+  "2066-12-25":"holiday"
+};
+
+function autoHolidayFor(year, month, day){
+  const key = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  return KR_HOLIDAYS[key];
+}
+
+// 저장된 값(수동 지정/해제)이 있으면 그것을, 없으면 자동 공휴일 데이터를 사용
+function holidayTypeFor(year, month, day){
+  const saved = monthData.holidays[day];
+  if(saved !== undefined) return saved === 'none' ? undefined : saved;
+  return autoHolidayFor(year, month, day);
+}
+
+let current = new Date();
+current.setDate(1);
+let monthData = { items:{}, holidays:{} };
+let currentKey = "";
+let openDay = null;
+
+const monthNames = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
+const weekdayNames = ["일","월","화","수","목","금","토"];
+
+function keyFor(date){
+  return `calendar:${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+}
+
+function normalize(raw){
+  if(!raw) return { items:{}, holidays:{} };
+  let out;
+  if(raw.items || raw.holidays) out = { items: raw.items||{}, holidays: raw.holidays||{} };
+  else out = { items: raw, holidays: {} };
+  // 이전 버전 호환: holidays[d] === true 였던 값을 'holiday' 타입으로 변환
+  const fixedHolidays = {};
+  Object.keys(out.holidays).forEach(k=>{
+    const v = out.holidays[k];
+    fixedHolidays[k] = (v === true) ? 'holiday' : v;
+  });
+  out.holidays = fixedHolidays;
+  return out;
+}
+
+async function flushPendingSave(){
+  if(saveTimer){
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    try{
+      await window.storage.set(currentKey, JSON.stringify(monthData), true);
+    }catch(e){ /* 무시하고 진행 - 다음 로드에서 재시도 가능 */ }
+  }
+}
+
+async function loadMonth(){
+  await flushPendingSave();
+  currentKey = keyFor(current);
+  document.getElementById('statusLine').textContent = '불러오는 중...';
+  try{
+    const res = await window.storage.get(currentKey, true);
+    monthData = normalize(res ? JSON.parse(res.value) : null);
+  }catch(e){
+    monthData = { items:{}, holidays:{} };
+  }
+  document.getElementById('statusLine').textContent = '';
+  render();
+  if(openDay !== null) renderModal();
+}
+
+let saveTimer = null;
+let savingKeySnapshot = null;
+
+function saveMonth(){
+  // 디바운스: 짧은 시간 내 연속 조작은 마지막 한 번만 저장 (반응은 즉시, 저장은 묶어서)
+  const keyAtCall = currentKey;
+  if(saveTimer) clearTimeout(saveTimer);
+  document.getElementById('statusLine').textContent = '저장 중...';
+  saveTimer = setTimeout(async ()=>{
+    try{
+      await window.storage.set(keyAtCall, JSON.stringify(monthData), true);
+      document.getElementById('statusLine').textContent = '';
+    }catch(e){
+      document.getElementById('statusLine').textContent = '저장 실패 - 잠시 후 다시 시도해 주세요.';
+    }
+  }, 350);
+}
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+function buildCell(d){
+  const year = current.getFullYear();
+  const month = current.getMonth();
+  const todayReal = new Date();
+  const isThisMonth = todayReal.getFullYear()===year && todayReal.getMonth()===month;
+
+  const weekday = new Date(year, month, d).getDay();
+  const holidayType = holidayTypeFor(year, month, d); // 'holiday' | 'substitute' | 'traditional' | undefined
+  const isHoliday = holidayType === 'holiday';
+  const isSubstitute = holidayType === 'substitute';
+  const isTraditional = holidayType === 'traditional';
+  const items = monthData.items[d] || [];
+  const doneCount = items.filter(it=>it.done).length;
+  const todoCount = items.length - doneCount;
+
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.dataset.day = d;
+  if(weekday === 0) cell.classList.add('sun');
+  if(weekday === 6) cell.classList.add('sat');
+  if(isHoliday) cell.classList.add('holiday');
+  if(isSubstitute) cell.classList.add('substitute');
+  if(isTraditional) cell.classList.add('traditional');
+  if(isThisMonth && d===todayReal.getDate()) cell.classList.add('today');
+  cell.onclick = ()=> openModal(d);
+
+  const daynum = document.createElement('div');
+  daynum.className = 'daynum';
+  const numSpan = document.createElement('span');
+  numSpan.className = 'num' + (weekday===0?' sun':'') + (weekday===6?' sat':'') + (isHoliday?' holiday':'') + (isSubstitute?' substitute':'') + (isTraditional?' traditional':'');
+  numSpan.textContent = d;
+  daynum.appendChild(numSpan);
+  if(isHoliday || isSubstitute || isTraditional){
+    const tag = document.createElement('span');
+    tag.className = 'holiday-tag' + (isSubstitute ? ' substitute' : '') + (isTraditional ? ' traditional' : '');
+    tag.textContent = isSubstitute ? '대체' : (isTraditional ? '명절' : '휴무');
+    daynum.appendChild(tag);
+  }
+  cell.appendChild(daynum);
+
+  if(items.length){
+    const statsRow = document.createElement('div');
+    statsRow.className = 'stats-row';
+    statsRow.innerHTML =
+      `<span class="pill">총 ${items.length}</span>` +
+      `<span class="pill done">완료 ${doneCount}</span>` +
+      `<span class="pill todo">미완료 ${todoCount}</span>`;
+    cell.appendChild(statsRow);
+  }
+
+  const preview = document.createElement('div');
+  preview.className = 'preview';
+  const shown = items.slice(0,3);
+  shown.forEach(it=>{
+    const row = document.createElement('div');
+    row.className = 'preview-item' + (it.done ? ' done' : '');
+    row.innerHTML = `<span class="dot"></span><span>${escapeHtml(it.text)}</span>`;
+    preview.appendChild(row);
+  });
+  if(items.length > 3){
+    const more = document.createElement('div');
+    more.className = 'more-count';
+    more.textContent = `+${items.length-3}개 더보기`;
+    preview.appendChild(more);
+  }
+  if(items.length === 0){
+    const hint = document.createElement('div');
+    hint.className = 'empty-hint';
+    hint.textContent = '클릭해서 추가';
+    preview.appendChild(hint);
+  }
+  cell.appendChild(preview);
+  return cell;
+}
+
+// 특정 날짜의 셀만 다시 그려서 전체 그리드 재구성을 피함 (데이터가 많을 때 부드럽게)
+function refreshCell(d){
+  const grid = document.getElementById('grid');
+  const old = grid.querySelector(`.cell[data-day="${d}"]`);
+  if(!old) return;
+  const fresh = buildCell(d);
+  grid.replaceChild(fresh, old);
+}
+
+function render(){
+  document.getElementById('monthName').textContent = monthNames[current.getMonth()];
+  document.getElementById('yearLabel').textContent = current.getFullYear() + '년';
+
+  const year = current.getFullYear();
+  const month = current.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  for(let i=0;i<firstDay;i++){
+    const empty = document.createElement('div');
+    empty.className = 'cell empty';
+    grid.appendChild(empty);
+  }
+
+  for(let d=1; d<=daysInMonth; d++){
+    grid.appendChild(buildCell(d));
+  }
+
+  updateIncompleteBadge();
+}
+
+function getIncompleteList(){
+  const list = [];
+  Object.keys(monthData.items).forEach(dayStr=>{
+    const day = parseInt(dayStr, 10);
+    (monthData.items[dayStr] || []).forEach(it=>{
+      if(!it.done) list.push({ day, item: it });
+    });
+  });
+  list.sort((a,b)=> a.day - b.day);
+  return list;
+}
+
+function updateIncompleteBadge(){
+  const count = getIncompleteList().length;
+  document.getElementById('incompleteCount').textContent = count;
+}
+
+function openIncompleteModal(){
+  document.getElementById('incompleteOverlay').classList.add('open');
+  renderIncompleteModal();
+}
+
+function closeIncompleteModal(){
+  document.getElementById('incompleteOverlay').classList.remove('open');
+}
+
+function renderIncompleteModal(){
+  const month = current.getMonth();
+  const list = getIncompleteList();
+  document.getElementById('incompleteSub').textContent =
+    `${monthNames[month]} · 총 ${list.length}개`;
+
+  const body = document.getElementById('incompleteBody');
+  body.innerHTML = '';
+
+  if(list.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'modal-empty';
+    empty.textContent = '미완료 할 일이 없어요. 모두 완료했어요! 🎉';
+    body.appendChild(empty);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  list.forEach(entry=> fragment.appendChild(buildIncompleteRow(entry)));
+  body.appendChild(fragment);
+}
+
+function buildIncompleteRow(entry){
+  const { day, item } = entry;
+  const month = current.getMonth();
+  const weekday = new Date(current.getFullYear(), month, day).getDay();
+
+  const row = document.createElement('div');
+  row.className = 'incomplete-row';
+
+  const dayBadge = document.createElement('div');
+  dayBadge.className = 'day-badge';
+  dayBadge.textContent = `${day}일 (${weekdayNames[weekday]})`;
+
+  const chk = document.createElement('div');
+  chk.className = 'row-chk';
+  chk.onclick = (e)=>{
+    e.stopPropagation();
+    item.done = true;
+    saveMonth();
+    row.classList.add('removing');
+    setTimeout(()=>{
+      row.remove();
+      refreshCell(day);
+      if(openDay === day){ updateModalStatsPills(); }
+      updateIncompleteCountOnly();
+      const body = document.getElementById('incompleteBody');
+      if(!body.querySelector('.incomplete-row')){
+        const empty = document.createElement('div');
+        empty.className = 'modal-empty';
+        empty.textContent = '미완료 할 일이 없어요. 모두 완료했어요! 🎉';
+        body.appendChild(empty);
+      }
+    }, 160);
+  };
+
+  const text = document.createElement('div');
+  text.className = 'row-text';
+  text.textContent = item.text;
+
+  row.appendChild(dayBadge);
+  row.appendChild(text);
+  row.appendChild(chk);
+
+  row.onclick = ()=>{
+    closeIncompleteModal();
+    openModal(day);
+  };
+
+  return row;
+}
+
+function updateIncompleteCountOnly(){
+  const count = getIncompleteList().length;
+  document.getElementById('incompleteCount').textContent = count;
+  const month = current.getMonth();
+  document.getElementById('incompleteSub').textContent = `${monthNames[month]} · 총 ${count}개`;
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function openModal(day){
+  openDay = day;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('modalInput').value = '';
+  renderModal();
+  setTimeout(()=> document.getElementById('modalInput').focus(), 100);
+}
+
+function closeModal(){
+  document.getElementById('overlay').classList.remove('open');
+  openDay = null;
+}
+
+function updateModalStatsPills(){
+  if(openDay === null) return;
+  const items = monthData.items[openDay] || [];
+  const doneCount = items.filter(it=>it.done).length;
+  const todoCount = items.length - doneCount;
+  document.getElementById('modalStats').innerHTML =
+    `<span class="pill">총 ${items.length}</span>` +
+    `<span class="pill done">완료 ${doneCount}</span>` +
+    `<span class="pill todo">미완료 ${todoCount}</span>`;
+}
+
+function buildModalItemRow(it, d){
+  const row = document.createElement('div');
+  row.className = 'modal-item' + (it.done ? ' done' : '');
+  row.dataset.id = it.id;
+
+  const chk = document.createElement('div');
+  chk.className = 'modal-chk';
+  chk.onclick = ()=>{
+    it.done = !it.done;
+    row.classList.toggle('done', it.done);
+    saveMonth();
+    updateModalStatsPills();
+    refreshCell(d);
+    updateIncompleteBadge();
+  };
+
+  const text = document.createElement('div');
+  text.className = 'modal-item-text';
+  text.contentEditable = 'true';
+  text.textContent = it.text;
+  text.onblur = ()=>{
+    const val = text.textContent.trim();
+    if(val === ''){ text.textContent = it.text; return; }
+    if(val !== it.text){
+      it.text = val;
+      saveMonth();
+      refreshCell(d);
+    }
+  };
+  text.onkeydown = (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); text.blur(); }
+  };
+
+  const del = document.createElement('button');
+  del.className = 'modal-del';
+  del.textContent = '✕';
+  del.onclick = ()=>{
+    row.classList.add('removing');
+    setTimeout(()=>{
+      const items = monthData.items[d] || [];
+      monthData.items[d] = items.filter(x=>x.id!==it.id);
+      row.remove();
+      if((monthData.items[d]||[]).length === 0){
+        const body = document.getElementById('modalBody');
+        const empty = document.createElement('div');
+        empty.className = 'modal-empty';
+        empty.textContent = '아직 할 일이 없어요. 아래에서 추가해 보세요.';
+        body.appendChild(empty);
+      }
+      saveMonth();
+      updateModalStatsPills();
+      refreshCell(d);
+      updateIncompleteBadge();
+    }, 160);
+  };
+
+  row.appendChild(chk);
+  row.appendChild(text);
+  row.appendChild(del);
+  return row;
+}
+
+function renderModal(){
+  if(openDay === null) return;
+  const year = current.getFullYear();
+  const month = current.getMonth();
+  const d = openDay;
+  const weekday = new Date(year, month, d).getDay();
+  const holidayType = holidayTypeFor(year, month, d);
+  const isHoliday = holidayType === 'holiday';
+  const isSubstitute = holidayType === 'substitute';
+  const isTraditional = holidayType === 'traditional';
+  const items = monthData.items[d] || [];
+
+  document.getElementById('modalTitle').textContent = `${monthNames[month]} ${d}일`;
+  document.getElementById('modalSub').textContent =
+    `${weekdayNames[weekday]}요일` + (isHoliday ? ' · 공휴일' : '') + (isSubstitute ? ' · 대체공휴일' : '') + (isTraditional ? ' · 명절' : '');
+
+  updateModalStatsPills();
+
+  const holidayBtn = document.getElementById('holidayToggleBtn');
+  holidayBtn.textContent = isHoliday ? '공휴일 해제' : '공휴일로 표시';
+  holidayBtn.className = 'holiday-toggle-btn' + (isHoliday ? ' active' : '');
+  holidayBtn.onclick = ()=>{
+    monthData.holidays[d] = isHoliday ? 'none' : 'holiday';
+    saveMonth();
+    refreshCell(d);
+    renderModal();
+  };
+
+  const substituteBtn = document.getElementById('substituteToggleBtn');
+  substituteBtn.textContent = isSubstitute ? '대체공휴일 해제' : '대체공휴일로 표시';
+  substituteBtn.className = 'holiday-toggle-btn' + (isSubstitute ? ' sub-active' : '');
+  substituteBtn.onclick = ()=>{
+    monthData.holidays[d] = isSubstitute ? 'none' : 'substitute';
+    saveMonth();
+    refreshCell(d);
+    renderModal();
+  };
+
+  const traditionalBtn = document.getElementById('traditionalToggleBtn');
+  traditionalBtn.textContent = isTraditional ? '명절 해제' : '명절로 표시';
+  traditionalBtn.className = 'holiday-toggle-btn' + (isTraditional ? ' trad-active' : '');
+  traditionalBtn.onclick = ()=>{
+    monthData.holidays[d] = isTraditional ? 'none' : 'traditional';
+    saveMonth();
+    refreshCell(d);
+    renderModal();
+  };
+
+  const body = document.getElementById('modalBody');
+  body.innerHTML = '';
+  if(items.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'modal-empty';
+    empty.textContent = '아직 할 일이 없어요. 아래에서 추가해 보세요.';
+    body.appendChild(empty);
+  }
+  const fragment = document.createDocumentFragment();
+  items.forEach(it=> fragment.appendChild(buildModalItemRow(it, d)));
+  body.appendChild(fragment);
+}
+
+function addModalItem(){
+  if(openDay === null) return;
+  const input = document.getElementById('modalInput');
+  const text = input.value.trim();
+  if(!text) return;
+  const d = openDay;
+  if(!monthData.items[d]) monthData.items[d] = [];
+  const it = { id: uid(), text, done:false };
+  monthData.items[d].push(it);
+  input.value = '';
+  saveMonth();
+
+  const body = document.getElementById('modalBody');
+  const emptyMsg = body.querySelector('.modal-empty');
+  if(emptyMsg) emptyMsg.remove();
+  body.appendChild(buildModalItemRow(it, d));
+
+  updateModalStatsPills();
+  refreshCell(d);
+  updateIncompleteBadge();
+}
+
+document.getElementById('modalAddBtn').onclick = addModalItem;
+document.getElementById('modalInput').onkeydown = (e)=>{
+  if(e.key === 'Enter') addModalItem();
+};
+document.getElementById('modalClose').onclick = closeModal;
+document.getElementById('overlay').onclick = (e)=>{
+  if(e.target.id === 'overlay') closeModal();
+};
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape'){ closeModal(); closeIncompleteModal(); }
+});
+
+document.getElementById('incompleteBadge').onclick = openIncompleteModal;
+document.getElementById('incompleteClose').onclick = closeIncompleteModal;
+document.getElementById('incompleteOverlay').onclick = (e)=>{
+  if(e.target.id === 'incompleteOverlay') closeIncompleteModal();
+};
+
+document.getElementById('prevBtn').onclick = ()=>{
+  current.setMonth(current.getMonth()-1);
+  loadMonth();
+};
+document.getElementById('nextBtn').onclick = ()=>{
+  current.setMonth(current.getMonth()+1);
+  loadMonth();
+};
+document.getElementById('todayBtn').onclick = ()=>{
+  current = new Date();
+  current.setDate(1);
+  loadMonth();
+};
+
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'hidden') flushPendingSave();
+});
+window.addEventListener('pagehide', ()=> flushPendingSave());
+window.addEventListener('beforeunload', ()=> flushPendingSave());
+
+loadMonth();
+</script>
+</body>
+</html>
