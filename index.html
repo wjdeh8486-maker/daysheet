@@ -1105,6 +1105,29 @@ const KR_HOLIDAYS = {
   "2066-12-25":"holiday"
 };
 
+// ===== 구글 시트 저장소 연동 =====
+// 아래 SCRIPT_URL에 Apps Script 배포 후 발급받은 웹 앱 URL을 붙여넣으세요.
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyVuoAdCkFmjiKupGLFz2Ozev5CIdtduOdSrDu6NxqVtjQ0e_V6JCYWXlbSBfE245bk/exec';
+
+async function sheetGet(key){
+  const res = await fetch(`${SCRIPT_URL}?action=get&key=${encodeURIComponent(key)}`);
+  if(!res.ok) throw new Error('불러오기 실패');
+  const data = await res.json();
+  return (data.value === null || data.value === undefined || data.value === '')
+    ? null
+    : { key, value: data.value };
+}
+
+async function sheetSet(key, value){
+  const res = await fetch(SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action:'set', key, value })
+  });
+  if(!res.ok) throw new Error('저장 실패');
+  return await res.json();
+}
+
 function autoHolidayFor(year, month, day){
   const key = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   return KR_HOLIDAYS[key];
@@ -1150,7 +1173,7 @@ async function flushPendingSave(){
     clearTimeout(saveTimer);
     saveTimer = null;
     try{
-      await window.storage.set(currentKey, JSON.stringify(monthData), true);
+      await sheetSet(currentKey, JSON.stringify(monthData));
     }catch(e){ /* 무시하고 진행 - 다음 로드에서 재시도 가능 */ }
   }
 }
@@ -1160,7 +1183,7 @@ async function loadMonth(){
   currentKey = keyFor(current);
   document.getElementById('statusLine').textContent = '불러오는 중...';
   try{
-    const res = await window.storage.get(currentKey, true);
+    const res = await sheetGet(currentKey);
     monthData = normalize(res ? JSON.parse(res.value) : null);
   }catch(e){
     monthData = { items:{}, holidays:{} };
@@ -1180,7 +1203,7 @@ function saveMonth(){
   document.getElementById('statusLine').textContent = '저장 중...';
   saveTimer = setTimeout(async ()=>{
     try{
-      await window.storage.set(keyAtCall, JSON.stringify(monthData), true);
+      await sheetSet(keyAtCall, JSON.stringify(monthData));
       document.getElementById('statusLine').textContent = '';
     }catch(e){
       document.getElementById('statusLine').textContent = '저장 실패 - 잠시 후 다시 시도해 주세요.';
